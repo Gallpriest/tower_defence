@@ -4,6 +4,8 @@ import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { createGrid } from './grid';
 import { GlobalEvents } from './events';
 import { StateMachine } from './state';
+import { PathsGenerator } from './paths';
+
 import GUI from 'lil-gui';
 
 const tool = new GUI();
@@ -21,14 +23,17 @@ class Game {
     loader: GLTFLoader;
     ambientLight: THREE.AmbientLight;
     directionalLight: THREE.DirectionalLight;
+    orthographicCamera: THREE.OrthographicCamera;
 
     events: GlobalEvents;
     DOMElements: { picker: Array<Element> } = {
         picker: []
     };
     grid: THREE.Group = new THREE.Group();
+    paths: THREE.Group = new THREE.Group();
     edges: THREE.Group = new THREE.Group();
 
+    pathGenerator: PathsGenerator;
     state: StateMachine;
     models: Record<'tower', GLTF | null> = { tower: null };
 
@@ -36,26 +41,37 @@ class Game {
         w: window.innerWidth,
         h: window.innerHeight
     };
+    aspect = 0;
 
     constructor(canvas: HTMLElement) {
         /** General setup */
         this.canvas = canvas;
         this.scene = new THREE.Scene();
+        this.loader = new GLTFLoader();
         this.camera = new THREE.PerspectiveCamera();
-        this.controls = new OrbitControls(this.camera, this.canvas);
         this.renderer = new THREE.WebGLRenderer({ canvas });
         this.raycaster = new THREE.Raycaster(new THREE.Vector3(-3, 0, 0));
         this.ambientLight = new THREE.AmbientLight();
         this.directionalLight = new THREE.DirectionalLight();
-        this.loader = new GLTFLoader();
-
+        this.aspect = this.SIZE.w / this.SIZE.h;
+        this.orthographicCamera = new THREE.OrthographicCamera(
+            this.SIZE.w / -10,
+            this.SIZE.w / 10,
+            this.SIZE.h / 10,
+            this.SIZE.h / -10,
+            0.1,
+            1000
+        );
+        this.controls = new OrbitControls(this.camera, this.canvas);
         /** State */
         this.state = new StateMachine(this);
+        this.pathGenerator = new PathsGenerator(this);
 
         /** Main initialization */
         this.loadModels();
         this.initializeDefaultSettings();
         this.initializeGrid();
+        this.initializePath();
         this.loadDOMElements();
 
         /** Support classes */
@@ -82,9 +98,9 @@ class Game {
     private enableGUI() {
         gridFolder.add(this.grid.position, 'x').min(-10).max(10).step(0.1).name('grid "x" position');
 
-        cameraFolder.add(this.camera.position, 'x').min(-10).max(10).step(0.1).name('camera "x" position');
-        cameraFolder.add(this.camera.position, 'y').min(-10).max(10).step(0.1).name('camera "y" position');
-        cameraFolder.add(this.camera.position, 'z').min(-10).max(10).step(0.1).name('camera "z" position');
+        cameraFolder.add(this.orthographicCamera.position, 'x').min(-10).max(10).step(0.1).name('camera "x" position');
+        cameraFolder.add(this.orthographicCamera.position, 'y').min(-10).max(10).step(0.1).name('camera "y" position');
+        cameraFolder.add(this.orthographicCamera.position, 'z').min(-10).max(10).step(0.1).name('camera "z" position');
 
         lightFolder.add(this.ambientLight, 'intensity').min(0).max(1).step(0.01).name('ambient light intensity');
         lightFolder
@@ -117,6 +133,15 @@ class Game {
         /** Scene settings */
         // this.scene.background = new THREE.Color('#537188');
 
+        this.orthographicCamera.zoom = 16;
+        this.orthographicCamera.left = this.SIZE.w / -10;
+        this.orthographicCamera.right = this.SIZE.w / 10;
+        this.orthographicCamera.top = this.SIZE.h / 10;
+        this.orthographicCamera.bottom = this.SIZE.h / -10;
+        this.orthographicCamera.position.set(5, 5, 5);
+        this.orthographicCamera.updateProjectionMatrix();
+        this.scene.add(this.orthographicCamera);
+
         /** Camera settings */
         this.camera.fov = 75;
         this.camera.aspect = this.SIZE.w / this.SIZE.h;
@@ -131,6 +156,8 @@ class Game {
         this.controls.rotateSpeed = 0.7;
         this.controls.target.set(0, 0, 0);
         this.controls.enablePan = false;
+        this.controls.maxZoom = 30;
+        this.controls.minZoom = 16;
         this.controls.maxDistance = 8;
         this.controls.minDistance = 2;
         this.controls.maxPolarAngle = Math.PI / 2.2;
@@ -167,6 +194,12 @@ class Game {
 
         this.scene.add(this.edges);
         this.scene.add(this.grid);
+    }
+
+    private initializePath() {
+        this.pathGenerator.createTestPath(this.paths);
+
+        this.scene.add(this.paths);
     }
 
     private loadDOMElements(): void {
@@ -211,15 +244,15 @@ class Game {
         this.scene.add(plane);
     }
 
+    public createEntity(): void {
+        this.createTower();
+        this.createBacklight();
+        this.state.updateProcess('dragging');
+    }
+
     private loop(): void {
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
-
-        if (this.state.processes.creation.triggerCreation) {
-            this.createTower();
-            this.createBacklight();
-            this.state.updateProcess('dragging');
-        }
 
         window.requestAnimationFrame(this.loop);
     }

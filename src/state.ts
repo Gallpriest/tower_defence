@@ -18,9 +18,6 @@ import { ObjectsArray, StateProcesses } from './types';
 class StateMachine {
     game: Game;
     processes: StateProcesses = {
-        creation: {
-            triggerCreation: false
-        },
         dragging: {
             object: null,
             backlight: null,
@@ -35,7 +32,7 @@ class StateMachine {
 
     objectsArray: ObjectsArray = [];
     pointerPosition: Vector2 = new Vector2(0, 0);
-    activeProcess: keyof StateProcesses | null = null;
+    activeProcess: keyof StateProcesses | 'creation' | null = null;
 
     constructor(game: Game) {
         this.game = game;
@@ -94,13 +91,15 @@ class StateMachine {
     }
 
     public intersectionBlocked() {
-        const boundaries = this.game.intersect(this.objectsArray.map(({ boundary }) => boundary));
+        const targetedObjects = [...this.objectsArray.map(({ boundary }) => boundary), ...this.game.paths.children];
+        const boundaries = this.game.intersect(targetedObjects);
+        const isPath = boundaries.some((intesect) => intesect.object.name === 'Path');
 
         if (boundaries.length > 1 && this.activeProcess === 'dragging') {
             const intersectedSeveralObjects = this.objectsArray
                 .filter(({ boundary }) => boundaries.find((item) => item.object.uuid === boundary.uuid))
                 .some(({ cell }) => cell.object.uuid === this.processes.dragging.intersection?.object.uuid);
-            if (intersectedSeveralObjects) {
+            if (intersectedSeveralObjects || isPath) {
                 this.processes.dragging.blocked = true;
                 document.body.style.cursor = 'not-allowed';
 
@@ -124,9 +123,10 @@ class StateMachine {
             const current = this.objectsArray.find(({ boundary }) => boundary.uuid === newIntersection.object.uuid);
 
             if (
-                current &&
-                current.cell.object.uuid === this.processes.dragging.intersection?.object.uuid &&
-                current.object.uuid !== this.processes.dragging.object?.uuid
+                isPath ||
+                (current &&
+                    current.cell.object.uuid === this.processes.dragging.intersection?.object.uuid &&
+                    current.object.uuid !== this.processes.dragging.object?.uuid)
             ) {
                 this.processes.dragging.blocked = true;
                 document.body.style.cursor = 'not-allowed';
@@ -215,9 +215,6 @@ class StateMachine {
     public resetState() {
         this.activeProcess = null;
         this.processes = {
-            creation: {
-                triggerCreation: false
-            },
             dragging: {
                 object: null,
                 backlight: null,
@@ -291,16 +288,14 @@ class StateMachine {
         edge.material.opacity = value;
     }
 
-    public updateProcess(value: keyof StateProcesses | null) {
+    public updateProcess(value: keyof StateProcesses | 'creation' | null) {
         this.activeProcess = value;
 
         if (value === 'creation') {
-            this.processes.creation.triggerCreation = true;
-            this.processes.dragging.type = 'new';
+            this.game.createEntity();
         }
 
         if (value === 'dragging') {
-            this.processes.creation.triggerCreation = false;
             this.toggleEdges(0.5);
         }
     }

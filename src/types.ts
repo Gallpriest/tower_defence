@@ -5,9 +5,6 @@ type CellMeshObject = Mesh<PlaneGeometry, MeshBasicMaterial>;
 type MeshObject = Mesh<any, any>;
 
 type StateProcesses = {
-    creation: {
-        triggerCreation: boolean;
-    };
     dragging: {
         object: Group | null;
         backlight: Mesh<any, any> | null;

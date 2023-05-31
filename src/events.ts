@@ -1,4 +1,3 @@
-import { Color } from 'three';
 import { Game } from './game';
 
 class GlobalEvents {
@@ -21,6 +20,12 @@ class GlobalEvents {
         this.game.renderer.setSize(this.game.SIZE.w, this.game.SIZE.h);
         this.game.camera.aspect = this.game.SIZE.w / this.game.SIZE.h;
         this.game.camera.updateProjectionMatrix();
+
+        this.game.orthographicCamera.left = this.game.SIZE.w / -10;
+        this.game.orthographicCamera.right = this.game.SIZE.w / 10;
+        this.game.orthographicCamera.top = this.game.SIZE.h / 10;
+        this.game.orthographicCamera.bottom = this.game.SIZE.h / -10;
+        this.game.orthographicCamera.updateProjectionMatrix();
     }
 
     public pointerUpCreation(event: PointerEvent) {
