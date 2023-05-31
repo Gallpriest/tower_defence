@@ -1,0 +1,45 @@
+#panel {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 100%;
+    max-width: 400px;
+    z-index: 1;
+    background-color: #fff;
+    transform: translateX(-50%);
+}
+
+.panel-container {
+    padding: 0 10px;
+    border: 1px solid;
+    height: 60px;
+    gap: 10px;
+    list-style: none;
+    display: flex;
+    align-items: center;
+}
+
+.panel-container__item {
+    cursor: pointer;
+    padding: 8px;
+    border: 1px solid;
+}
+
+.panel-container__item:hover {
+    color: #fff;
+    background-color: #000;
+}
+
+.panel-container__item.js__chosen-object {
+    color: #fff;
+    background-color: #000;
+}
+
+.panel-container__chosen {
+    display: none;
+    padding: 8px;
+}
+
+.panel-container__chosen.js--chosen-object {
+    display: block;
+}
