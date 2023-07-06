@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { createGrid } from './grid';
-import { GlobalEvents } from './events';
 import { StateMachine } from './state';
-import { PathsGenerator } from './paths';
+import { EnemyBuilder } from './enemy';
+import { GlobalEvents } from './events';
+import { NewGenerator } from './paths';
 
 import GUI from 'lil-gui';
 
@@ -24,6 +25,7 @@ class Game {
     ambientLight: THREE.AmbientLight;
     directionalLight: THREE.DirectionalLight;
     orthographicCamera: THREE.OrthographicCamera;
+    timer: Timer;
 
     events: GlobalEvents;
     DOMElements: { picker: Array<Element> } = {
@@ -33,15 +35,17 @@ class Game {
     paths: THREE.Group = new THREE.Group();
     edges: THREE.Group = new THREE.Group();
 
-    pathGenerator: PathsGenerator;
+    pathGenerator: NewGenerator;
     state: StateMachine;
     models: Record<'tower', GLTF | null> = { tower: null };
-
+    enemyBuilder: EnemyBuilder;
     SIZE = {
         w: window.innerWidth,
         h: window.innerHeight
     };
     aspect = 0;
+
+    currentPathIdx = 0;
 
     constructor(canvas: HTMLElement) {
         /** General setup */
@@ -50,7 +54,7 @@ class Game {
         this.loader = new GLTFLoader();
         this.camera = new THREE.PerspectiveCamera();
         this.renderer = new THREE.WebGLRenderer({ canvas });
-        this.raycaster = new THREE.Raycaster(new THREE.Vector3(-3, 0, 0));
+        this.raycaster = new THREE.Raycaster();
         this.ambientLight = new THREE.AmbientLight();
         this.directionalLight = new THREE.DirectionalLight();
         this.aspect = this.SIZE.w / this.SIZE.h;
@@ -63,15 +67,17 @@ class Game {
             1000
         );
         this.controls = new OrbitControls(this.camera, this.canvas);
+        this.timer = new Timer(this);
+
         /** State */
         this.state = new StateMachine(this);
-        this.pathGenerator = new PathsGenerator(this);
+        this.pathGenerator = new NewGenerator(this, new THREE.Vector3(3, 0, 0));
+        this.enemyBuilder = new EnemyBuilder(this);
 
         /** Main initialization */
         this.loadModels();
         this.initializeDefaultSettings();
         this.initializeGrid();
-        this.initializePath();
         this.loadDOMElements();
 
         /** Support classes */
@@ -87,20 +93,35 @@ class Game {
         this.enableGUI();
     }
 
+    public initEnemies() {
+        // setTimeout(() => {
+        //     this.enemyBuilder.createTarget();
+        // }, 1000);
+        setInterval(() => {
+            this.enemyBuilder.createTarget();
+        }, 2000);
+    }
+
     private loadModels(): void {
-        this.loader.load('../assets/tower.gltf', (gltf) => {
-            gltf.scene.scale.set(0.1, 0.12, 0.1);
-            gltf.scene.rotation.y = Math.PI / 2;
+        this.loader.load('../assets/TD_tower_lvl_1.gltf', (gltf) => {
+            // gltf.scene.scale.set(0.1, 0.12, 0.1);
+            // gltf.scene.rotation.y = Math.PI / 2;
+
+            gltf.scene.scale.set(0.5, 0.5, 0.5);
             this.models.tower = gltf;
+
+            tool.add(this.models.tower.scene.scale, 'x').min(0.1).max(5).step(0.01);
+            tool.add(this.models.tower.scene.scale, 'y').min(0.1).max(5).step(0.01);
+            tool.add(this.models.tower.scene.scale, 'z').min(0.1).max(5).step(0.01);
         });
     }
 
     private enableGUI() {
         gridFolder.add(this.grid.position, 'x').min(-10).max(10).step(0.1).name('grid "x" position');
 
-        cameraFolder.add(this.orthographicCamera.position, 'x').min(-10).max(10).step(0.1).name('camera "x" position');
-        cameraFolder.add(this.orthographicCamera.position, 'y').min(-10).max(10).step(0.1).name('camera "y" position');
-        cameraFolder.add(this.orthographicCamera.position, 'z').min(-10).max(10).step(0.1).name('camera "z" position');
+        cameraFolder.add(this.camera.position, 'x').min(-20).max(20).step(0.1).name('camera "x" position');
+        cameraFolder.add(this.camera.position, 'y').min(-20).max(20).step(0.1).name('camera "y" position');
+        cameraFolder.add(this.camera.position, 'z').min(-20).max(20).step(0.1).name('camera "z" position');
 
         lightFolder.add(this.ambientLight, 'intensity').min(0).max(1).step(0.01).name('ambient light intensity');
         lightFolder
@@ -140,26 +161,24 @@ class Game {
         this.orthographicCamera.bottom = this.SIZE.h / -10;
         this.orthographicCamera.position.set(5, 5, 5);
         this.orthographicCamera.updateProjectionMatrix();
-        this.scene.add(this.orthographicCamera);
+
+        // this.scene.add(this.orthographicCamera);
 
         /** Camera settings */
         this.camera.fov = 75;
         this.camera.aspect = this.SIZE.w / this.SIZE.h;
         this.camera.near = 0.1;
         this.camera.far = 1000;
-        this.camera.position.set(2, 5, 7);
+        // this.camera.position.set(2, 4, 6);
         this.scene.add(this.camera);
         this.camera.updateProjectionMatrix();
 
         /** Control settings */
         this.controls.update();
         this.controls.rotateSpeed = 0.7;
-        this.controls.target.set(0, 0, 0);
-        this.controls.enablePan = false;
-        this.controls.maxZoom = 30;
-        this.controls.minZoom = 16;
-        this.controls.maxDistance = 8;
-        this.controls.minDistance = 2;
+        this.controls.enablePan = true;
+        // this.controls.maxDistance = 8;
+        // this.controls.minDistance = 2;
         this.controls.maxPolarAngle = Math.PI / 2.2;
 
         /** Raycaster settings */
@@ -182,6 +201,19 @@ class Game {
     }
 
     private initilizeGlobalEvents(): void {
+        const timer = document.body.querySelector('.js-timer');
+        const generators = Array.from(document.body.querySelectorAll('.js-path'));
+
+        if (timer) {
+            (timer as HTMLButtonElement).addEventListener('pointerup', this.events.pointerUpTimer);
+        }
+
+        if (generators) {
+            generators.forEach((elem) => {
+                (elem as HTMLElement).addEventListener('pointerup', this.events.pointerGeneratePath);
+            });
+        }
+
         window.addEventListener('resize', this.events.resizeListener);
         window.addEventListener('pointerup', this.events.pointerUpCreation);
         window.addEventListener('pointermove', this.events.pointerMoveHandler);
@@ -194,12 +226,29 @@ class Game {
 
         this.scene.add(this.edges);
         this.scene.add(this.grid);
+
+        let bbox = new THREE.Box3().setFromObject(this.grid);
+        let test = bbox.getCenter(new THREE.Vector3(0, 0, 0));
+
+        this.camera.position.set(5.6, 6.3, 11);
+        this.controls.target.set(test.x, 0, test.z);
+        this.controls.update();
+        console.log(test);
     }
 
-    private initializePath() {
-        this.pathGenerator.createTestPath(this.paths);
-
+    public generatePath(index: number) {
+        this.pathGenerator
+            .go('forward', 5)
+            .go('right', 3)
+            .go('backward', 2)
+            .go('right', 3)
+            .go('forward', 4)
+            .go('left', 7)
+            .go('forward', 3)
+            .output();
         this.scene.add(this.paths);
+
+        this.initEnemies();
     }
 
     private loadDOMElements(): void {

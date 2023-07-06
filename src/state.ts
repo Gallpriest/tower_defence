@@ -173,13 +173,13 @@ class StateMachine {
                 : this.processes.dragging.object.position.z;
 
             this.processes.dragging.backlight.position.x = intersection
-                ? intersection.object.position.x - 4.5
+                ? intersection.object.position.x
                 : this.processes.dragging.backlight.position.x;
             this.processes.dragging.backlight.position.y = intersection
                 ? intersection.object.position.y
                 : this.processes.dragging.backlight.position.y;
             this.processes.dragging.backlight.position.z = intersection
-                ? intersection.object.position.z - 4.5
+                ? intersection.object.position.z
                 : this.processes.dragging.backlight.position.z;
         }
     }
@@ -238,9 +238,9 @@ class StateMachine {
             const { object } = this.processes.dragging;
             const { intersection: cell } = this.processes.dragging;
 
-            object.position.x = cell.object.position.x - 4.5;
+            object.position.x = cell.object.position.x;
             object.position.y = cell.object.position.y + 0.01;
-            object.position.z = cell.object.position.z - 4.5;
+            object.position.z = cell.object.position.z;
 
             const modelProps = new Box3().setFromObject(object);
             let size = new Vector3();
@@ -248,9 +248,9 @@ class StateMachine {
             const boundaryGeometry = new BoxGeometry(0.7, modelProps.getSize(size).y - 0.4, 0.7);
             const boundaryMaterial = new MeshBasicMaterial({ transparent: true, opacity: 0 });
             const boundary = new Mesh(boundaryGeometry, boundaryMaterial);
-            boundary.position.x = cell.object.position.x - 4.5;
+            boundary.position.x = cell.object.position.x;
             boundary.position.y = cell.object.position.y + 0.7;
-            boundary.position.z = cell.object.position.z - 4.5;
+            boundary.position.z = cell.object.position.z;
             boundary.uuid = object.uuid;
 
             this.addNewObject({ boundary, object, cell });

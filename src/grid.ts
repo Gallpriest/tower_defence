@@ -67,11 +67,11 @@ function createGrid(grid: Group, edges: Group) {
             edges.add(edge);
         }
 
-        edges.position.x = -4.5;
-        edges.position.z = -4.5;
+        // edges.position.x = -4.5;
+        // edges.position.z = -4.5;
 
-        grid.position.x = -4.5;
-        grid.position.z = -4.5;
+        // grid.position.x = -4.5;
+        // grid.position.z = -4.5;
     }
 
     drawGrid();

@@ -1,4 +1,4 @@
-import { Game } from './game';
+import { Game, PATH_CONFIGS } from './game';
 
 class GlobalEvents {
     game: Game;
@@ -6,6 +6,8 @@ class GlobalEvents {
     constructor(game: Game) {
         this.game = game;
 
+        this.pointerGeneratePath = this.pointerGeneratePath.bind(this);
+        this.pointerUpTimer = this.pointerUpTimer.bind(this);
         this.resizeListener = this.resizeListener.bind(this);
         this.pointerUpCreation = this.pointerUpCreation.bind(this);
         this.pointerMoveHandler = this.pointerMoveHandler.bind(this);
@@ -26,6 +28,22 @@ class GlobalEvents {
         this.game.orthographicCamera.top = this.game.SIZE.h / 10;
         this.game.orthographicCamera.bottom = this.game.SIZE.h / -10;
         this.game.orthographicCamera.updateProjectionMatrix();
+    }
+
+    public pointerGeneratePath(event: PointerEvent) {
+        const pathIndex = Number((event.target as HTMLButtonElement).getAttribute('data-path-index'));
+
+        this.game.generatePath(pathIndex);
+        this.game.currentPathIdx = pathIndex;
+    }
+
+    public pointerUpTimer(event: PointerEvent) {
+        if (!this.game.timer.clock.running) {
+            this.game.timer.start();
+        } else {
+            this.game.timer.stop();
+        }
+        (event.target as HTMLElement).textContent = this.game.timer.clock.running ? 'Stop timer' : 'Start timer';
     }
 
     public pointerUpCreation(event: PointerEvent) {
