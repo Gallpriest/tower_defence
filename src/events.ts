@@ -32,18 +32,7 @@ class GlobalEvents {
 
     public pointerGeneratePath(event: PointerEvent) {
         const pathIndex = Number((event.target as HTMLButtonElement).getAttribute('data-path-index'));
-
-        this.game.generatePath(pathIndex);
         this.game.currentPathIdx = pathIndex;
-    }
-
-    public pointerUpTimer(event: PointerEvent) {
-        if (!this.game.timer.clock.running) {
-            this.game.timer.start();
-        } else {
-            this.game.timer.stop();
-        }
-        (event.target as HTMLElement).textContent = this.game.timer.clock.running ? 'Stop timer' : 'Start timer';
     }
 
     public pointerUpCreation(event: PointerEvent) {

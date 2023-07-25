@@ -13,6 +13,9 @@ const tool = new GUI();
 const gridFolder = tool.addFolder('Grid');
 const cameraFolder = tool.addFolder('Camera');
 const lightFolder = tool.addFolder('Lights');
+gridFolder.close();
+cameraFolder.close();
+lightFolder.close();
 
 class Game {
     canvas: HTMLElement;
@@ -25,7 +28,6 @@ class Game {
     ambientLight: THREE.AmbientLight;
     directionalLight: THREE.DirectionalLight;
     orthographicCamera: THREE.OrthographicCamera;
-    timer: Timer;
 
     events: GlobalEvents;
     DOMElements: { picker: Array<Element> } = {
@@ -67,7 +69,6 @@ class Game {
             1000
         );
         this.controls = new OrbitControls(this.camera, this.canvas);
-        this.timer = new Timer(this);
 
         /** State */
         this.state = new StateMachine(this);
@@ -102,26 +103,140 @@ class Game {
         }, 2000);
     }
 
+    createNewGrid() {
+        const geometryCell = new THREE.PlaneGeometry(1, 1, 1);
+        const materialCell = new THREE.MeshStandardMaterial({ color: '#CBB279' });
+        const geometryEdge = new THREE.EdgesGeometry(geometryCell);
+        const materialEdge = new THREE.LineBasicMaterial({ color: 'black', transparent: true, opacity: 0 });
+
+        let shiftZ = 0;
+        let shiftX = -1;
+        const rotation = -Math.PI / 2;
+
+        /** Create cells */
+        for (let i = 0; i < 100; i++) {
+            const plane = new THREE.Mesh(geometryCell, materialCell);
+            const edge = new THREE.LineSegments(geometryEdge, materialEdge);
+
+            shiftX += 1;
+
+            if (i !== 0 && i % 10 === 0) {
+                shiftZ += 1;
+                shiftX = 0;
+            }
+
+            const uuid = THREE.MathUtils.generateUUID();
+
+            edge.name = 'Edge';
+            edge.uuid = uuid;
+            edge.position.y = 0.01;
+            edge.position.x = shiftX;
+            edge.position.z = shiftZ;
+            edge.rotation.x = rotation;
+
+            plane.name = 'Cell';
+            plane.uuid = uuid;
+            plane.position.y = 6;
+            plane.position.x = shiftX;
+            plane.position.z = shiftZ;
+            plane.rotation.x = rotation;
+
+            this.grid.add(plane);
+            this.edges.add(edge);
+        }
+    }
+
     private loadModels(): void {
-        this.loader.load('../assets/TD_tower_lvl_1.gltf', (gltf) => {
+        this.loader.load('../assets/pond.glb', (gltf) => {
             // gltf.scene.scale.set(0.1, 0.12, 0.1);
             // gltf.scene.rotation.y = Math.PI / 2;
 
-            gltf.scene.scale.set(0.5, 0.5, 0.5);
+            // gltf.scene.scale.set(0.5, 0.5, 0.5);
             this.models.tower = gltf;
+            gltf.scenes[0].position.y = 3;
+
+            console.log(gltf);
+            this.scene.add(gltf.scene);
 
             tool.add(this.models.tower.scene.scale, 'x').min(0.1).max(5).step(0.01);
             tool.add(this.models.tower.scene.scale, 'y').min(0.1).max(5).step(0.01);
             tool.add(this.models.tower.scene.scale, 'z').min(0.1).max(5).step(0.01);
+        });
+
+        this.loader.load('../assets/game_scene.glb', (gltf) => {
+            this.scene.add(gltf.scenes[0]);
+
+            let bbox = new THREE.Box3().setFromObject(gltf.scenes[0]);
+            let test = bbox.getCenter(new THREE.Vector3(0, 0, 0));
+            console.log(Math.floor(Math.abs(bbox.min.x)) * Math.floor(bbox.max.x), bbox);
+            this.camera.position.set(-3, 32, 24);
+            this.controls.target.set(test.x, 0, test.z);
+            this.controls.update();
+
+            const placements = gltf.scenes[0].children.filter(({ name }) => name.includes('Placement'));
+
+            const backlightPlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(1, 1),
+                new THREE.MeshBasicMaterial({
+                    color: 'yellow',
+                    transparent: true,
+                    opacity: 0.6,
+                    visible: false,
+                    side: THREE.DoubleSide
+                })
+            );
+
+            backlightPlane.position.y = 1.02;
+            backlightPlane.rotation.x = -Math.PI / 2;
+
+            this.scene.add(backlightPlane);
+
+            const grids: any[] = [];
+
+            placements.forEach((place) => {
+                const box3 = new THREE.Box3().setFromObject(place);
+                const size = Math.round(Math.abs(box3.min.x)) + Math.round(Math.abs(box3.max.x));
+                console.log(box3);
+                console.log(size);
+                const grid = new THREE.GridHelper(6, 6);
+
+                grid.position.y = 1.01;
+                grid.position.x = place.position.x;
+                grid.position.z = place.position.z;
+
+                grids.push(grid);
+
+                this.scene.add(grid);
+            });
+
+            window.addEventListener('mousemove', () => {
+                const values = this.raycaster.intersectObjects(placements);
+
+                if (values.length) {
+                    // console.log(values);
+                    const intersection = values[0];
+
+                    backlightPlane.material.visible = true;
+                    const position = new THREE.Vector3().copy(intersection.point).floor();
+                    backlightPlane.position.x = position.x;
+                    backlightPlane.position.z = position.z + 0.8;
+                    // console.log(position);
+                    // console.log(new THREE.Vector3().copy(first.point).floor().addScalar(0.5));
+                } else {
+                    backlightPlane.material.visible = false;
+                }
+            });
+
+            // this.scene.add(this.models.tower?.scene.clone() as any);
         });
     }
 
     private enableGUI() {
         gridFolder.add(this.grid.position, 'x').min(-10).max(10).step(0.1).name('grid "x" position');
 
-        cameraFolder.add(this.camera.position, 'x').min(-20).max(20).step(0.1).name('camera "x" position');
-        cameraFolder.add(this.camera.position, 'y').min(-20).max(20).step(0.1).name('camera "y" position');
-        cameraFolder.add(this.camera.position, 'z').min(-20).max(20).step(0.1).name('camera "z" position');
+        cameraFolder.add(this.camera.position, 'x').min(-40).max(40).step(0.1).name('camera "x" position');
+        cameraFolder.add(this.camera.position, 'y').min(-40).max(40).step(0.1).name('camera "y" position');
+        cameraFolder.add(this.camera.position, 'z').min(-40).max(40).step(0.1).name('camera "z" position');
 
         lightFolder.add(this.ambientLight, 'intensity').min(0).max(1).step(0.01).name('ambient light intensity');
         lightFolder
@@ -222,21 +337,12 @@ class Game {
     }
 
     private initializeGrid(): void {
-        createGrid(this.grid, this.edges);
-
-        this.scene.add(this.edges);
-        this.scene.add(this.grid);
-
-        let bbox = new THREE.Box3().setFromObject(this.grid);
-        let test = bbox.getCenter(new THREE.Vector3(0, 0, 0));
-
-        this.camera.position.set(5.6, 6.3, 11);
-        this.controls.target.set(test.x, 0, test.z);
-        this.controls.update();
-        console.log(test);
+        // createGrid(this.grid, this.edges);
+        // this.scene.add(this.edges);
+        // this.scene.add(this.grid);
     }
 
-    public generatePath(index: number) {
+    public generatePath() {
         this.pathGenerator
             .go('forward', 5)
             .go('right', 3)
